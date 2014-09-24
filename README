@@ -1,0 +1,10 @@
+Work-in-progress "voxel" game or game engine.
+
+Probably you won't be able to compile/use it without my help. The repo doesn't
+include assets used in testing (fonts, gui skin, textures, cursors). And it
+depends on a number of specific libraries, which are not included either.
+
+Here for educational purposes, the license is BSD for now. Could be altered in
+future.
+
+How it looks like: http://i.imgur.com/UnOnF34.jpg
