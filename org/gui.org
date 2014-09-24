@@ -1,0 +1,175 @@
+#+TITLE: NG GUI
+#+AUTHOR: nsf <no.smile.face@gmail.com>
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="http://thomasf.github.io/solarized-css/solarized-dark.min.css" />
+#+STARTUP: showall
+#+OPTIONS: ^:{}
+
+* Concepts
+
+** Documentation Notes
+
+When describing a function, documentation uses an augmented syntax which adds
+types to the declarations, it looks like this:
+
+#+begin_src lua
+-- default lua syntax:
+add(a, b)
+
+-- syntax extension augmented with types:
+add(a int, b int) int
+--    |      |    |
+--    |      |    \
+--    |      |     return type
+--    |      \
+--    |       2nd arg type
+--    \
+--     1st arg type
+#+end_src
+
+The syntax is not formal, it's free form, for documentation purposes.
+
+** Configure
+
+All widgets have a set of properties and the ~Configure()~ method is what
+mutates them. You don't need to change the default ~Configure()~ method in most
+cases, but you need to know how it works.
+
+~Configure()~ takes a table as a parameter and applies all the
+named values in that table to the widget. All widget creation functions/methods
+use the ~Configure()~ method:
+
+#+begin_src lua
+gui:Button("button2", {
+	text = "Click meh!",
+	on_click = function()
+		print("Hello")
+	end
+})
+#+end_src
+
+Of course you can call it explicitly at any time:
+
+#+begin_src lua
+gui:Get("button2"):Configure{ text = "Click me!" }
+#+end_src
+
+The default ~Configure()~ method does the following:
+
+1. For each named value in a table it checks if there is an entry in widgets'
+   ~custom~ table with the same name. If there is no such entry, go to *3*.
+2. If ~custom~ contains an entry, it should be a closure of a form:
+   ~function(widget, value)~, which takes care of applying the value to the
+   widget.
+3. If ~custom~ doesn't contain an entry, the value is applied to the property of
+   the same name as-is.
+4. Widget's ~recalc~ and ~redraw~ conditions are inspected. If any of them
+   contains the entry with a matching name, an appropriate flag is set. For more
+   info about these two, see [[Abstract Widget]] class properties.
+
+Therefore, in many cases, if you want to customize the ~Configure()~ method
+behaviour, modifying widget's condition tables and/or ~custom~ property is
+enough.
+
+** Layout Mechanics
+
+Layout is calculated using two stages:
+
+1. Widgets are queried for their minimal and preferred sizes. That's achieved
+   via recursive ~RecalculateSizes()~ method calls.
+
+   ~min_size~ property guarantees that the widgets' ~Reconfigure()~ method will
+   not be called with a vector less than its value. It doesn't mean widget will
+   always get that amount of space, but it's safe to assume so. There is a
+   built-in protection, preventing widgets from drawing themselves outside of an
+   allocated area. You can use that value to guarantee there will be no division
+   by zero, etc.
+
+   ~preferred_size~ is a hint to the layout widgets, that's the amount of space
+   widget would like to get. Preferred size cannot be less than minimal size,
+   that restriction is applied automatically (TODO: how?).
+
+2. An actual layout is calculated applying the sizes and positions to the
+   widgets via ~Reconfigure()~ method.
+
+If a window allows automatic sizing, between stage 1 and 2, the preferred size
+of the top widget is passed to window's ~Resize()~ method.
+
+* Widgets
+
+** Abstract Widget
+
+The root class of all GUI widgets, contains a set of common methods and
+properties.
+
+
++ Class Properties:
+  - DefaultStyle :: A set of properties which are used as a style for the
+                    widget. See widget's ~style~ property.
+  - Conditions :: A table which contains two other tables: ~recalc~ and
+                  ~redraw~, each of them contains flags with names matching the
+                  widget's properties. If the flag is set, mutation of the
+                  property will cause an appropriate global action:
+                  - ~recalc~ forces global recalculation of widget sizes.
+                  - ~redraw~ forces global redraw.
+
+
++ Properties:
+  - name :: Full name of the widget instance
+  - gui :: Pointer to the gui instance this widget was created in
+  - min_size :: Minimal size of the widget, it's guaranteed that widget's
+                ~Reconfigure~ method will be called with size greater than or
+                equal to ~min_size~. It doesn't mean however that widget will
+                get draw area with the same size, it can be smaller. The main
+                reason behind this is to allow certain assertions when doing
+                math (e.g. avoiding divisions by zero). And of course layout
+                widgets will do what they can to keep enough area for a
+                widget. Both ~min_size~ and ~preferred_size~ should only be
+                modified during ~RecalculateSizes~ method call.
+
+  - preferred_size :: Preferred size of the widget. It's typically set to some
+                      predefined value or after ~RecalculateSizes~ method
+                      call. For example if the widget is a label, it's
+                      reasonable to see its preferred width as length of the
+                      text and height as one. Layout widgets should try to keep
+                      at least ~min_size~ area for a widget and prefer to
+                      allocate ~preferred_size~ when possible. Both ~min_size~
+                      and ~preferred_size~ should only be modified during
+                      ~RecalculateSizes~ method call.
+  - position :: Absolute posotion of the widget within its GUI object. Should be
+                set to whatever ~Reconfigure~ argument tells you to.
+  - size :: Size of the widget in cells. Should be set to whatever ~Reconfigure~
+            argument tells you to.
+  - custom :: This property is used to customize the behaviour of the default
+              configure method. See [[Configure]] section for more details.
+  - style :: A set of properties which are used as a style for the widget. By
+             default points to ~DefaultStyle~ class property.
++ Methods:
+  - ~WidgetUnderPoint(p Vec2i)~ :: Returns the widget under the point ~p~,
+       custom implementations are a must for container widgets, by default
+       returns self.
+  - ~Cursor() Vec2i~ :: Returns the cursor position within the widget,
+       Vec2i(0, 0) is no cursor. Only active widgets are a subject for this
+       query.
+  - ~Activate()~ :: Called when widget is being activated.
+  - ~Deactivate()~ :: Called when widget is being deactivated.
+  - ~OnMouseButton(p Vec2i, button int)~ :: Invoked when the user presses a
+       mouse button on top of the widget.
+  - ~OnMouseWheel(p Vec2i, n int)~ :: Invoked when the user scrolls mouse wheel
+       on top of the widget.
+  - ~OnHoverEnter()~ :: This method is called, when the mouse enters the widget
+       for the first time.
+  - ~OnHoverLeave()~ :: This method is called, when the mouse leaves the widget.
+  - ~OnDrag()~ :: This method is called when user pressed a button on top of the
+                  widget, holds it and starts to move the mouse without
+                  releasing the button.
+  - ~RecalculateSizes()~ :: Called when layout recalculation is requests (see
+       [[Layout Mechanics]]). This function should calculate an appropriate values
+       for ~min_size~ and ~preferred_size~ properties. Container widgets should
+       make a recursive call of this function for their children as well.
+  - ~Reconfigure(position Vec2i, size Vec2i)~ :: Called after
+       ~RecalculateSizes()~, taking its results into account, therefore ~size~
+       is always >= ~min_size~ of the widget. Container widgets should make a
+       recursive call of this function for their children as well. Default
+       implementations assigns the arguments to the corresponding properties.
+  - ~Configure(config table)~ :: Applies named values from ~config~ table to the
+       widget properties. See [[Configure]] section for more details.

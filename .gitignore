@@ -1,0 +1,6 @@
+CMakeLists.txt.user*
+builds
+docs/gui.html
+docs_3rdparty
+textures
+textures_source

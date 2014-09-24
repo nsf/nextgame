@@ -1,0 +1,11 @@
+include_directories(${COMMON_TEST_INCLUDES} ${NEXTGAME_SOURCE_ROOT})
+
+nextgame_test(TestVector)
+nextgame_test(TestBitArray)
+nextgame_test(TestHeap)
+nextgame_test(TestStaticVector)
+nextgame_test(TestString)
+nextgame_test(TestDefer)
+nextgame_test(TestError)
+nextgame_test(TestUTF8)
+nextgame_test(TestHashMap)
